@@ -15,8 +15,8 @@
 #include "gsl/span"
 #include "memory_source.hpp"
 #include "payload_vector.hpp"
-#include "pstl/algorithm"
-#include "pstl/execution"
+//#include "pstl/algorithm"
+//#include "pstl/execution"
 #include "range/v3/view/iota.hpp"
 #include "spdlog/spdlog.h"
 #include "tbb/concurrent_queue.h"
@@ -193,6 +193,7 @@ namespace invert {
         write_sequence(sstream, gsl::span<uint32_t const>(index.document_sizes));
     }
 
+    /*
     auto invert_range(
         gsl::span<gsl::span<Term_Id const>> documents, Document_Id first_document_id, size_t threads)
     {
@@ -234,6 +235,7 @@ namespace invert {
         index.document_sizes = std::move(document_sizes);
         return index;
     }
+    */
 
     [[nodiscard]] auto build_batches(
         std::string const& input_basename,

@@ -12,3 +12,5 @@
 #include "query/algorithm/ranked_or_query.hpp"
 #include "query/algorithm/ranked_or_taat_query.hpp"
 #include "query/algorithm/wand_query.hpp"
+
+#include "query/algorithm/ladr_graph.hpp"

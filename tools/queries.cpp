@@ -134,7 +134,9 @@ void perftest(
     bool safe,
     const size_t timeout_microsec,
     const float risk_factor,
-    const size_t max_clusters)
+    const size_t max_clusters,
+    const size_t max_ladr_clusters,
+    const std::string& ladr_graph_path)
 {
     if (weighted) {
         spdlog::info("Obeying query weights.");
@@ -201,6 +203,9 @@ void perftest(
 
     std::vector<std::string> query_types;
     boost::algorithm::split(query_types, query_type, boost::is_any_of(":"));
+
+    ladr_graph g(ladr_graph_path, max_ladr_clusters);
+    
 
     for (auto&& t: query_types) {
         spdlog::info("Query type: {}", t);
@@ -347,7 +352,7 @@ void perftest(
             query_fun = [&](Query query, Threshold t, const cluster_queue&) {
                 topk_queue topk(k);
                 topk.set_threshold(t);
-                maxscore_query maxscore_q(topk, all_ranges);
+                maxscore_query maxscore_q(topk, all_ranges, g);
                 maxscore_q(make_max_scored_cursors(index, wdata, *scorer, query, weighted), index.num_docs());
                 topk.finalize();
                 return topk.topk().size();
@@ -357,7 +362,7 @@ void perftest(
             query_fun = [&](Query query, Threshold t, const cluster_queue& ordered_clusters) {
                 topk_queue topk(k);
                 topk.set_threshold(t);
-                maxscore_query maxscore_q(topk, all_ranges);
+                maxscore_query maxscore_q(topk, all_ranges, g);
                 maxscore_q.ordered_range_query(
                     make_max_scored_cursors(index, wdata, *scorer, query, weighted), ordered_clusters, max_clusters);
                 topk.finalize();
@@ -368,7 +373,7 @@ void perftest(
             query_fun = [&](Query query, Threshold t, const cluster_queue&) {
                 topk_queue topk(k);
                 topk.set_threshold(t);
-                maxscore_query maxscore_q(topk, all_ranges);
+                maxscore_query maxscore_q(topk, all_ranges, g);
                 maxscore_q.boundsum_range_query(
                     make_max_scored_cursors(index, wdata, *scorer, query, weighted), max_clusters);
                 topk.finalize();
@@ -379,7 +384,7 @@ void perftest(
             query_fun = [&](Query query, Threshold t, const cluster_queue&) {
                 topk_queue topk(k);
                 topk.set_threshold(t);
-                maxscore_query maxscore_q(topk, all_ranges);
+                maxscore_query maxscore_q(topk, all_ranges, g);
                 maxscore_q.boundsum_timeout_query(
                     make_max_scored_cursors(index, wdata, *scorer, query, weighted), timeout_microsec, risk_factor);
                 topk.finalize();
@@ -431,7 +436,10 @@ int main(int argc, const char** argv)
     bool quantized = false;
     size_t timeout_micro = 0;
     size_t max_clusters = 0;
+    size_t max_ladr_clusters = 0;
     float risk_factor = 1.0f;
+
+    std::string ladr_graph_path = "/home/yifanq/anytime-daat-data/ladr_graph.txt";
 
     App<arg::Index,
         arg::WandData<arg::WandMode::Optional>,
@@ -449,6 +457,8 @@ int main(int argc, const char** argv)
     app.add_option("--timeout", timeout_micro, "Query timeout in microseconds (for timeout queries).");
     app.add_option("--risk", risk_factor, "Risk factor (for timeout queries)");
     app.add_option("--max-clusters", max_clusters, "The maximum number of clusters to visit.");
+    app.add_option("--max-ladr-clusters", max_ladr_clusters, "The maximum number of clusters to visit.");
+    app.add_option("--ladr_graph_path", ladr_graph_path, "LADR graph path");
     CLI11_PARSE(app, argc, argv);
 
     if (silent) {
@@ -475,7 +485,7 @@ int main(int argc, const char** argv)
         safe,
         timeout_micro,
         risk_factor,
-        max_clusters);
+        max_clusters, max_ladr_clusters, ladr_graph_path);
 
     /**/
     if (false) {

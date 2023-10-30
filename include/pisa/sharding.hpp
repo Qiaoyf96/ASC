@@ -8,9 +8,9 @@
 #include <boost/filesystem.hpp>
 #include <fmt/format.h>
 #include <gsl/span>
-#include <pstl/algorithm>
-#include <pstl/execution>
-#include <pstl/numeric>
+//#include <pstl/algorithm>
+//#include <pstl/execution>
+//#include <pstl/numeric>
 #include <range/v3/action/shuffle.hpp>
 #include <range/v3/action/sort.hpp>
 #include <range/v3/algorithm/for_each.hpp>
@@ -22,7 +22,7 @@
 #include <spdlog/spdlog.h>
 
 #include "binary_collection.hpp"
-#include "invert.hpp"
+// #include "invert.hpp"
 #include "io.hpp"
 #include "payload_vector.hpp"
 #include "type_safe.hpp"
@@ -268,6 +268,7 @@ auto process_shard(
     spdlog::info("Shard {} finished.", shard_id.as_int());
 }
 
+/*
 auto partition_fwd_index(
     std::string const& input_basename,
     std::string const& output_basename,
@@ -282,5 +283,6 @@ auto partition_fwd_index(
         process_shard(input_basename, output_basename, id, terms);
     });
 }
+*/
 
 }  // namespace pisa

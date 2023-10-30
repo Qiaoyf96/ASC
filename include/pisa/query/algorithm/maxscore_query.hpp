@@ -8,11 +8,12 @@
 #include "query/queries.hpp"
 #include "topk_queue.hpp"
 #include "util/compiler_attribute.hpp"
+#include "query/algorithm/ladr_graph.hpp"
 
 namespace pisa {
 
 struct maxscore_query {
-    explicit maxscore_query(topk_queue& topk, cluster_map& range_to_docid) : m_topk(topk), m_range_to_docid(range_to_docid) {}
+    explicit maxscore_query(topk_queue& topk, cluster_map& range_to_docid, ladr_graph& graph) : m_topk(topk), m_range_to_docid(range_to_docid), m_graph(graph) {}
 
     template <typename Cursors>
     [[nodiscard]] PISA_ALWAYSINLINE auto sorted(Cursors&& cursors)
@@ -260,6 +261,9 @@ struct maxscore_query {
     template <typename CursorRange>
     void boundsum_range_query(CursorRange&& cursors_, const size_t max_clusters)
     {
+        m_graph.init();
+
+        
 
         if (cursors_.empty()) {
             return;
@@ -285,24 +289,63 @@ struct maxscore_query {
 
         size_t processed_clusters = 0;
 
-        // Main loop operates over the high-to-low threshold ranges
-        for (const auto& index : range_and_score) {
+        std::vector<int> founded;
 
-            // Termination check: number of clusters processed, and thresholds
-            if (processed_clusters == max_clusters || !m_topk.would_enter(index.second)) {
+        int ladr_search_begin = 4096;
+
+        // Main loop operates over the high-to-low threshold ranges
+        for (const auto& index_pair : range_and_score) {
+
+            int found = 0;
+
+            // // Termination check: number of clusters processed, and thresholds
+            // if (processed_clusters == (max_clusters + m_graph.m_num_clusters) || !m_topk.would_enter(index_pair.second)) {
+            //     return;
+            // }
+
+            if ((processed_clusters > max_clusters) || ((int)processed_clusters - ladr_search_begin > m_graph.m_num_clusters)) {
+                // printf("%d %d %d %d\n", processed_clusters, max_clusters, ladr_search_begin, m_graph.m_num_clusters);
                 return;
             }
+
             ++processed_clusters;
 
+        // int index = range_and_score[0].first;
+    
+        // for (processed_clusters = 0; processed_clusters < max_clusters; processed_clusters++) {
+
+            int index = 0;
+
+            if (processed_clusters > ladr_search_begin) {
+                m_graph.init_counts();
+
+                // m_topk.finalize();
+                auto& qs = m_topk.topk();
+                for (auto &q : qs) {
+                    m_graph.add(q.second);
+                }
+
+                index = m_graph.next_cluster();
+                if (index == -1) {
+                    break;
+                }
+            }
+            else {
+                index = index_pair.first;
+            }
+            
+
+            m_graph.visit(index);
+
             // Pick up the [start, end] range
-            auto start = m_range_to_docid[index.first].first;
-            auto end = m_range_to_docid[index.first].second;
+            auto start = m_range_to_docid[index].first;
+            auto end = m_range_to_docid[index].second;
 
             float range_bound = 0.0f;
             auto out = upper_bounds.rbegin();
             for (auto pos = cursors.rbegin(); pos != cursors.rend(); ++pos) {
                 pos->global_geq(start);
-                pos->update_range_max_score(index.first);
+                pos->update_range_max_score(index);
                 range_bound += pos->max_score();
                 *out++ = range_bound;
            }
@@ -370,11 +413,34 @@ struct maxscore_query {
                         }
                     }
                 }
-                if (m_topk.insert(current_score, current_docid)
-                    && update_non_essential_lists() == UpdateResult::ShortCircuit) {
+                bool ff = m_topk.insert(current_score, current_docid);
+                if (ff) {
+                    found += 1;
+                }
+                if (ff && update_non_essential_lists() == UpdateResult::ShortCircuit) {
                     break;
                 }
             }
+
+            founded.push_back(found);
+
+            if (ladr_search_begin == 4096 && processed_clusters > 10) {
+                int tot = 0;
+                for (int i = processed_clusters - 10; i < processed_clusters; i++) {
+                    // ct += 1;
+                    tot += founded[i];
+                }
+
+                if (tot < 10) {
+                    ladr_search_begin = processed_clusters;
+                }
+            }
+
+            if (ladr_search_begin == 4096 && processed_clusters + m_graph.m_num_clusters >= max_clusters) {
+                ladr_search_begin = processed_clusters;
+            }
+
+            // printf("order of cluster: %d cluster number: %d found documents: %d\n", processed_clusters, index, found);
         }
     }
 
@@ -522,6 +588,8 @@ struct maxscore_query {
   private:
     topk_queue& m_topk;
     cluster_map& m_range_to_docid;
+
+    ladr_graph& m_graph;
 
 };
 
