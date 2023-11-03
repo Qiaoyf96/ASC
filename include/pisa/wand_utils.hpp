@@ -39,6 +39,11 @@ std::tuple<std::vector<uint32_t>, std::vector<float>, std::vector<uint32_t>, std
     uint32_t current_range = doc_to_range[*(seq.docs.begin())];
     float range_max_score = 0;
 
+    for (int i = 0; i < current_range; i++) {
+        range_docid.push_back(0);
+        range_max_term_weight.push_back(0);
+    }
+
     for (i = 0; i < seq.docs.size(); ++i) {
         uint64_t docid = *(seq.docs.begin() + i);
         uint64_t freq = *(seq.freqs.begin() + i);
@@ -57,6 +62,10 @@ std::tuple<std::vector<uint32_t>, std::vector<float>, std::vector<uint32_t>, std
             range_docid.push_back(current_range);
             range_max_term_weight.push_back(range_max_score);
             range_max_score = std::max((float)0, score);
+            for (int xx = current_range; xx < doc_to_range[docid] - 1; xx++) {
+                range_docid.push_back(xx);
+                range_max_term_weight.push_back(0);
+            }
             current_range = doc_to_range[docid];
         } else {
           range_max_score = std::max(range_max_score, score);
@@ -66,6 +75,11 @@ std::tuple<std::vector<uint32_t>, std::vector<float>, std::vector<uint32_t>, std
     block_max_term_weight.push_back(block_max_score);
     range_docid.push_back(current_range);
     range_max_term_weight.push_back(range_max_score);
+
+    for (int xx = current_range + 1; xx < 4096*8; xx++) {
+        range_docid.push_back(xx);
+        range_max_term_weight.push_back(0);
+    }
 
     return std::make_tuple(block_docid, block_max_term_weight, range_docid, range_max_term_weight);
 }

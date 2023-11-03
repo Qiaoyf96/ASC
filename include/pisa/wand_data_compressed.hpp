@@ -212,6 +212,13 @@ class wand_data_compressed {
             return 0.0f;
         }
 
+        // const float* PISA_FLATTEN_FUNC get_range_max_array() const
+        // {
+        //     std::cerr << "NOT IMPLEMENTED.\n";
+        //     std::exit(EXIT_FAILURE);
+        //     return NULL;
+        // }
+
         float PISA_FLATTEN_FUNC score()
         {
             // NOLINTNEXTLINE(readability-braces-around-statements)

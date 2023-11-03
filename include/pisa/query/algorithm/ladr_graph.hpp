@@ -73,6 +73,10 @@ struct ladr_graph {
         return ret;
     }
 
+    bool is_visited(int clusterid) {
+        return visited[clusterid];
+    }
+
     void visit(int clusterid) {
         // printf("next c: %d\n", clusterid);
         visited[clusterid] = 1;

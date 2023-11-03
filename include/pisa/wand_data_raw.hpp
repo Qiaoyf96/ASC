@@ -139,15 +139,23 @@ class wand_data_raw {
         // ANYTIME: Returns UB score for a given range
         float PISA_NOINLINE range_score(uint64_t range_id) const 
         {
-            size_t i = 0;
-            while (i + 1 < range_number && m_range_id[range_start + i] < range_id) {
-                ++i;
-            }
-            if (m_range_id[range_start + i] == range_id) {
-                return m_range_max_term_weight[range_start + i];
-            }
-            return 0.0f;
+            return m_range_max_term_weight[range_start + range_id];
+            // printf("range_number %d\n", range_number);
+            // size_t i = 0;
+            // while (i + 1 < range_number && m_range_id[range_start + i] < range_id) {
+            //     ++i;
+            // }
+            // printf("range_number mapping %d %d\n", i, range_id);
+            // if (m_range_id[range_start + i] == range_id) {
+            //     return m_range_max_term_weight[range_start + i];
+            // }
+            // return 0.0f;
         }
+
+        // const float* PISA_FLATTEN_FUNC get_range_max_array() const
+        // {
+        //     return &m_range_max_term_weight[range_start];
+        // }
 
         float PISA_FLATTEN_FUNC score() const
         {
@@ -158,6 +166,8 @@ class wand_data_raw {
 
         uint64_t PISA_FLATTEN_FUNC find_next_skip() { return m_block_docid[cur_pos + block_start]; }
 
+        mapper::mappable_vector<float> const& m_range_max_term_weight;
+
       private:
         uint64_t cur_pos;
         uint64_t block_start;
@@ -166,7 +176,6 @@ class wand_data_raw {
         uint64_t range_number;
         mapper::mappable_vector<float> const& m_block_max_term_weight;
         mapper::mappable_vector<uint32_t> const& m_block_docid;
-        mapper::mappable_vector<float> const& m_range_max_term_weight;
         mapper::mappable_vector<uint32_t> const& m_range_id;
     };
 
@@ -192,13 +201,13 @@ class wand_data_raw {
             m_range_max_term_weight, "m_range_max_term_weight")(
             m_range_id, "m_range_id");
     }
+    mapper::mappable_vector<float> m_range_max_term_weight;
 
   private:
     mapper::mappable_vector<uint64_t> m_blocks_start;
     mapper::mappable_vector<float> m_block_max_term_weight;
     mapper::mappable_vector<uint32_t> m_block_docid;
     mapper::mappable_vector<uint64_t> m_ranges_start;
-    mapper::mappable_vector<float> m_range_max_term_weight;
     mapper::mappable_vector<uint32_t> m_range_id;
 };
 

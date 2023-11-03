@@ -30,16 +30,29 @@ class MaxScoredCursor: public ScoredCursor<Cursor> {
 
     [[nodiscard]] PISA_ALWAYSINLINE auto max_score() const noexcept -> float { return m_max_score; }
 
-    float get_range_max_score(uint64_t range)
+    float PISA_ALWAYSINLINE get_range_max_score(uint64_t range)
     {
       return this->query_weight() * m_wdata.range_score(range);
     }
+
+    // const float* get_range_max_score_array() const
+    // {
+    //   return m_wdata.get_range_max_array();
+    // }
+
+    // const float query_weight() const
+    // {
+    //   return this->query_weight();
+    // }
 
     // get_range_max_score returns the weighted score,
     // so just update it.
     void update_range_max_score(uint64_t range)
     {
       m_max_score = get_range_max_score(range);
+      for (int i = 1; i < 8; i++) {
+        m_max_score = std::max(m_max_score, get_range_max_score(range + i));
+      }
     }
 
 
