@@ -28,16 +28,16 @@ struct ladr_graph {
     int m_num_clusters;
 
     explicit ladr_graph(const std::string& filename, int num) : m_num_clusters(num) {
-        ifstream file(filename);
+        // ifstream file(filename);
 
-        std::string line;
-        while (getline(file, line)) {
-            auto v = split(line, '\t');
-            auto clusters = split(v[1], ' ');
-            for (auto &c : clusters) {
-                graph[stoi(v[0])].push_back(stoi(c));
-            }
-        }
+        // std::string line;
+        // while (getline(file, line)) {
+        //     auto v = split(line, '\t');
+        //     auto clusters = split(v[1], ' ');
+        //     for (auto &c : clusters) {
+        //         graph[stoi(v[0])].push_back(stoi(c));
+        //     }
+        // }
     }
 
     void init() {

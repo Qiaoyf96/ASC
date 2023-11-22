@@ -264,10 +264,6 @@ struct maxscore_query {
     template <typename CursorRange>
     void boundsum_range_query(CursorRange&& cursors_, const size_t max_clusters)
     {
-        m_graph.init();
-
-        
-
         if (cursors_.empty()) {
             return;
         }
@@ -280,36 +276,14 @@ struct maxscore_query {
         std::vector<std::pair<size_t, float>> range_and_score;
         size_t range_id = 0;
 
-        // auto t0 = std::chrono::high_resolution_clock::now();
-
         float range_maxes[4096*8];
         memset(range_maxes, 0, sizeof(range_maxes));
-        // for (auto pos = cursors.begin(); pos != cursors.end(); ++pos) {
-        //     const float* pt = pos->get_range_max_score_array();
-        //     const float weight = pos->query_weight();
-        //     for (int i = 0; i < 4096*8; i++) {
-        //         range_maxes[i] += weight * pt[i];
-        //     }
-        // }
 
         for (auto pos = cursors.begin(); pos != cursors.end(); ++pos) {
             for (int range_id = 0; range_id < 4096*8; range_id++) {
                 range_maxes[range_id] += pos->get_range_max_score(range_id);
             }
         }
-
-        // for (int i = 0; i < 4096*8; i++) {
-        //     range_and_score.emplace_back(i, range_maxes[i]);
-        // }
-
-        // for (const auto& range : m_range_to_docid) {
-        //     float range_bound_sum = 0.0f;
-        //     for (auto pos = cursors.begin(); pos != cursors.end(); ++pos) { 
-        //         range_bound_sum += pos->get_range_max_score(range_id);
-        //     }
-        //     range_and_score.emplace_back(range_id, range_bound_sum);
-        //     ++range_id;
-        // }
 
         float range_maxes_level_up[4096];
         for (int range_id = 0; range_id < 4096; range_id++) {
@@ -319,97 +293,25 @@ struct maxscore_query {
             range_and_score.emplace_back(range_id, range_maxes_level_up[range_id]);
         }
 
-        // printf("range_id: %d\n", range_id);
-
-        // auto t1 = std::chrono::high_resolution_clock::now();
-
-        // auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0);
- 
-        // To get the value of duration use the count()
-        // member function on the duration object
-        // printf("calc bound sum time: %d\n", duration.count());
-
-        // t0 = std::chrono::high_resolution_clock::now(); 
-
-        // Now, sort from high to low based on the BoundSum
         std::sort(range_and_score.begin(), range_and_score.end(), [](auto& l, auto& r){return l.second > r.second; });
-
-        // t1 = std::chrono::high_resolution_clock::now();
-        // duration = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0);
-        // printf("sort time: %d\n", duration.count());
-
-        // size_t processed_clusters = 0;
 
         std::vector<int> founded;
 
-        int sequentially_processed = 0;
-        int ladr_searched = 0;
         for (int processed_clusters = 0; processed_clusters < 4096; processed_clusters++) {
             int next_index = -1;
-            if (ladr_searched == 0 && ladr_searched < m_graph.m_num_clusters) {
-                if (sequentially_processed > 10) {
-                    int tot = 0;
-                    for (int i = processed_clusters - 10; i < processed_clusters; i++) {
-                        tot += founded[i];
-                    }
 
-                    if (tot < 10) {
-                        m_graph.init_counts();
+            auto &p = range_and_score[processed_clusters];
 
-                        // m_topk.finalize();
-                        auto& qs = m_topk.topk();
-                        for (auto &q : qs) {
-                            m_graph.add(q.second);
-                        }
-
-                        next_index = m_graph.next_cluster() * 8;
-                        ladr_searched += 1;
-                    } 
-                }
-            } 
-
-            if (ladr_searched > 0 && ladr_searched < m_graph.m_num_clusters) {
-                m_graph.init_counts();
-
-                // m_topk.finalize();
-                auto& qs = m_topk.topk();
-                for (auto &q : qs) {
-                    m_graph.add(q.second);
-                }
-
-                next_index = m_graph.next_cluster() * 8; 
-                ladr_searched += 1;
+            // Termination check: number of clusters processed, and thresholds
+            if (!m_topk.would_enter(p.second)) {
+                printf("\nclusters: %d\n", processed_clusters);
+                return;
             }
+            
 
-            if (next_index == -1) {
-                while (true) {
-                    auto &p = range_and_score[sequentially_processed];
-                    sequentially_processed++;
-
-                    if (m_graph.is_visited(p.first)) {
-                        continue;
-                    }
-
-                    // Termination check: number of clusters processed, and thresholds
-                    if (!m_topk.would_enter(p.second)) {
-                        printf("\nclusters: %d %d\n", processed_clusters, sequentially_processed);
-                        return;
-                    }
-                    
-
-                    next_index = p.first * 8;
-                    break;
-                }
-
-
-
-
-            }
+            next_index = p.first * 8;
    
             int found = 0;
-
-            m_graph.visit(next_index / 8);
-            printf("%d ", next_index / 8);
 
             // Pick up the [start, end] range
             auto start = m_range_to_docid[next_index].first;
