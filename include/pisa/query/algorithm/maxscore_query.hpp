@@ -276,26 +276,28 @@ struct maxscore_query {
         std::vector<std::pair<size_t, float>> range_and_score;
         size_t range_id = 0;
 
-        float range_maxes[4096*8];
+        float range_maxes[4096];
         memset(range_maxes, 0, sizeof(range_maxes));
 
         for (auto pos = cursors.begin(); pos != cursors.end(); ++pos) {
-            for (int range_id = 0; range_id < 4096*8; range_id++) {
+            for (int range_id = 0; range_id < 4096; range_id++) {
                 range_maxes[range_id] += pos->get_range_max_score(range_id);
             }
         }
 
-        float range_maxes_level_up[4096];
+        // float range_maxes_level_up[4096];
         for (int range_id = 0; range_id < 4096; range_id++) {
-            range_maxes_level_up[range_id] = 0;
-            for (int i = 0; i < 8; i++) range_maxes_level_up[range_id] = std::max(range_maxes_level_up[range_id], range_maxes[range_id * 8 + i]);
+            // range_maxes_level_up[range_id] = 0;
+            // for (int i = 0; i < 8; i++) range_maxes_level_up[range_id] = std::max(range_maxes_level_up[range_id], range_maxes[range_id * 8 + i]);
 
-            range_and_score.emplace_back(range_id, range_maxes_level_up[range_id]);
+            range_and_score.emplace_back(range_id, range_maxes[range_id]);
         }
 
         std::sort(range_and_score.begin(), range_and_score.end(), [](auto& l, auto& r){return l.second > r.second; });
 
         std::vector<int> founded;
+
+        int tot_evaluated = 0;
 
         for (int processed_clusters = 0; processed_clusters < 4096; processed_clusters++) {
             int next_index = -1;
@@ -304,18 +306,23 @@ struct maxscore_query {
 
             // Termination check: number of clusters processed, and thresholds
             if (!m_topk.would_enter(p.second)) {
-                printf("\nclusters: %d\n", processed_clusters);
+                // printf("details: ");
+                // for (int j = 0; j < processed_clusters; j++) {
+                //     printf("%ld ", range_and_score[j].first);
+                // }
+                // printf("\n");
+                printf("clusters: %d\n", processed_clusters);
                 return;
             }
             
 
-            next_index = p.first * 8;
+            next_index = p.first;
    
             int found = 0;
 
             // Pick up the [start, end] range
             auto start = m_range_to_docid[next_index].first;
-            auto end = m_range_to_docid[next_index + 7].second;
+            auto end = m_range_to_docid[next_index].second;
 
             float range_bound = 0.0f;
             auto out = upper_bounds.rbegin();
@@ -400,7 +407,7 @@ struct maxscore_query {
 
             founded.push_back(found);
         }
-        printf("\nclusters: %d\n", 4096);
+        printf("clusters: %d\n", 4096);
         return;
     }
 
