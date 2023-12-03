@@ -16,7 +16,7 @@
 namespace pisa {
 
 struct maxscore_query {
-    explicit maxscore_query(topk_queue& topk, cluster_map& range_to_docid, ladr_graph& graph) : m_topk(topk), m_range_to_docid(range_to_docid), m_graph(graph) {}
+    explicit maxscore_query(topk_queue& topk, cluster_map& range_to_docid, ladr_graph& graph, std::vector<int>& subcluster_sizes, float mu, float ita) : m_topk(topk), m_range_to_docid(range_to_docid), m_graph(graph), m_subcluster_sizes(subcluster_sizes), m_mu(mu), m_ita(ita) {}
 
     template <typename Cursors>
     [[nodiscard]] PISA_ALWAYSINLINE auto sorted(Cursors&& cursors)
@@ -268,67 +268,81 @@ struct maxscore_query {
             return;
         }
 
+        // m_graph.init();
+
+        auto tot_cluster_size = m_range_to_docid.size();
+
         auto cursors = sorted(cursors_);
  
         std::vector<float> upper_bounds(cursors.size());
         
         // BoundSum computation: For each range, get the boundsum.
-        std::vector<std::pair<size_t, float>> range_and_score;
+        std::vector<std::tuple<size_t, float, float, size_t>> range_and_score;
         size_t range_id = 0;
 
-        float range_maxes[4096];
+        float range_maxes[tot_cluster_size];
         memset(range_maxes, 0, sizeof(range_maxes));
 
         for (auto pos = cursors.begin(); pos != cursors.end(); ++pos) {
-            for (int range_id = 0; range_id < 4096; range_id++) {
+            for (int range_id = 0; range_id < tot_cluster_size; range_id++) {
                 range_maxes[range_id] += pos->get_range_max_score(range_id);
             }
         }
 
         // float range_maxes_level_up[4096];
+        // float range_avgs_level_up[4096];
+        int tot = 0;
         for (int range_id = 0; range_id < 4096; range_id++) {
-            // range_maxes_level_up[range_id] = 0;
-            // for (int i = 0; i < 8; i++) range_maxes_level_up[range_id] = std::max(range_maxes_level_up[range_id], range_maxes[range_id * 8 + i]);
+            float range_maxes_level_up = 0;
+            float range_avgs_level_up = 0;
+            auto sub_cluster_size = m_subcluster_sizes[range_id];
+            for (int i = 0; i < sub_cluster_size; i++) {
+                range_maxes_level_up = std::max(range_maxes_level_up, range_maxes[tot + i]);
+                range_avgs_level_up += range_maxes[tot + i];
+            }
 
-            range_and_score.emplace_back(range_id, range_maxes[range_id]);
+            range_avgs_level_up /= sub_cluster_size;
+
+            range_and_score.emplace_back(range_id, range_maxes_level_up, range_avgs_level_up, tot);
+            tot += sub_cluster_size;
         }
 
-        std::sort(range_and_score.begin(), range_and_score.end(), [](auto& l, auto& r){return l.second > r.second; });
+        std::sort(range_and_score.begin(), range_and_score.end(), [](auto& l, auto& r){return std::get<1>(l) > std::get<1>(r); });
 
         std::vector<int> founded;
 
         int tot_evaluated = 0;
 
         for (int processed_clusters = 0; processed_clusters < 4096; processed_clusters++) {
-            int next_index = -1;
 
             auto &p = range_and_score[processed_clusters];
 
             // Termination check: number of clusters processed, and thresholds
-            if (!m_topk.would_enter(p.second)) {
+            if (!m_topk.would_enter(std::get<1>(p) * m_mu) && !m_topk.would_enter(std::get<2>(p) * m_ita)) {
                 // printf("details: ");
                 // for (int j = 0; j < processed_clusters; j++) {
                 //     printf("%ld ", range_and_score[j].first);
                 // }
                 // printf("\n");
                 printf("clusters: %d\n", processed_clusters);
-                return;
+                break;
             }
             
 
-            next_index = p.first;
+            int next_index_start = std::get<3>(p);
+            int next_index_end = next_index_start + m_subcluster_sizes[std::get<0>(p)];
    
             int found = 0;
 
             // Pick up the [start, end] range
-            auto start = m_range_to_docid[next_index].first;
-            auto end = m_range_to_docid[next_index].second;
+            auto start = m_range_to_docid[next_index_start].first;
+            auto end = m_range_to_docid[next_index_end - 1].second;
 
             float range_bound = 0.0f;
             auto out = upper_bounds.rbegin();
             for (auto pos = cursors.rbegin(); pos != cursors.rend(); ++pos) {
                 pos->global_geq(start);
-                pos->update_range_max_score(next_index);
+                pos->update_range_max_score(next_index_start, next_index_end);  
                 range_bound += pos->max_score();
                 *out++ = range_bound;
             }
@@ -407,7 +421,16 @@ struct maxscore_query {
 
             founded.push_back(found);
         }
-        printf("clusters: %d\n", 4096);
+
+
+
+        // for (int i = 0; i < m_graph.m_num_clusters) {
+
+        // }
+
+        // printf("clusters: %d\n", 4096);
+
+
         return;
     }
 
@@ -557,6 +580,10 @@ struct maxscore_query {
     cluster_map& m_range_to_docid;
 
     ladr_graph& m_graph;
+
+    std::vector<int>& m_subcluster_sizes;
+
+    float m_mu, m_ita;
 
 };
 

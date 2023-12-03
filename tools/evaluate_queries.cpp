@@ -47,9 +47,12 @@ void evaluate_queries(
     const bool weighted,
     const size_t timeout_microsec,
     const float risk_factor,
+    const float mu,
+    const float ita,
     const size_t max_clusters,
     const size_t max_ladr_clusters,
     const std::string& ladr_graph_path,
+    const std::string& subcluster_size_path,
     std::string const& run_id,
     std::string const& iteration)
 {
@@ -58,6 +61,17 @@ void evaluate_queries(
     ladr_graph g(ladr_graph_path, max_ladr_clusters);
 
     // printf("loaded\n");
+    
+
+
+    ifstream file(subcluster_size_path);
+    std::string line;
+
+    vector<int> subcluster_sizes;
+    while (getline(file, line)) {
+        subcluster_sizes.push_back(stoi(line));
+    }
+    // printf("%d\n", subcluster_sizes[0]);
 
 
     IndexType index(MemorySource::mapped_file(index_filename));
@@ -194,7 +208,7 @@ void evaluate_queries(
     } else if (query_type == "maxscore") {
         query_fun = [&](Query query, const cluster_queue&) {
             topk_queue topk(k);
-            maxscore_query maxscore_q(topk, all_ranges, g);
+            maxscore_query maxscore_q(topk, all_ranges, g, subcluster_sizes, mu, ita);
             maxscore_q(make_max_scored_cursors(index, wdata, *scorer, query, weighted), index.num_docs());
             topk.finalize();
             return topk.topk();
@@ -203,7 +217,7 @@ void evaluate_queries(
     } else if (query_type == "maxscore_ordered_range") {
         query_fun = [&](Query query, const cluster_queue& ordered_clusters) {
             topk_queue topk(k);
-            maxscore_query maxscore_q(topk, all_ranges, g);
+            maxscore_query maxscore_q(topk, all_ranges, g, subcluster_sizes, mu, ita);
             maxscore_q.ordered_range_query(
                 make_max_scored_cursors(index, wdata, *scorer, query, weighted), ordered_clusters, max_clusters);
             topk.finalize();
@@ -213,7 +227,7 @@ void evaluate_queries(
     } else if (query_type == "maxscore_boundsum") {
         query_fun = [&](Query query, const cluster_queue&) {
             topk_queue topk(k);
-            maxscore_query maxscore_q(topk, all_ranges, g);
+            maxscore_query maxscore_q(topk, all_ranges, g, subcluster_sizes, mu, ita);
             maxscore_q.boundsum_range_query(
                 make_max_scored_cursors(index, wdata, *scorer, query, weighted), max_clusters);
             topk.finalize();
@@ -223,7 +237,7 @@ void evaluate_queries(
     } else if (query_type == "maxscore_boundsum_timeout") {
         query_fun = [&](Query query, const cluster_queue&) {
             topk_queue topk(k);
-            maxscore_query maxscore_q(topk, all_ranges, g);
+            maxscore_query maxscore_q(topk, all_ranges, g, subcluster_sizes, mu, ita);
             maxscore_q.boundsum_timeout_query(
                 make_max_scored_cursors(index, wdata, *scorer, query, weighted), timeout_microsec, risk_factor);
             topk.finalize();
@@ -300,10 +314,14 @@ int main(int argc, const char** argv)
     size_t max_clusters = 0;
     size_t max_ladr_clusters = 0;
     float risk_factor = 1.0f;
+    
+    float mu = 1.0f;
+    float ita = 1.0f;
 
     std::string ladr_graph_path = "/home/yifanq/anytime-daat-data/ladr_graph.txt";
 
 
+    std::string subcluster_size_path = "/home/yifanq/anytime-daat-data/subcluster_size_splade_dense_max_4096_8.txt";
 
     App<arg::Index,
         arg::WandData<arg::WandMode::Required>,
@@ -317,9 +335,12 @@ int main(int argc, const char** argv)
     app.add_option("-r,--run", run_id, "Run identifier");
     app.add_option("--documents", documents_file, "Document lexicon")->required();
     app.add_option("--ladr_graph_path", ladr_graph_path, "LADR graph path");
+    app.add_option("--subcluster_size_path", subcluster_size_path, "subcluster size path");
     app.add_flag("--quantized", quantized, "Quantized scores");
     app.add_option("--timeout", timeout_micro, "Query timeout in microseconds (for timeout queries).");
     app.add_option("--risk", risk_factor, "Risk factor (for timeout queries)");
+    app.add_option("--mu", mu, "mu");
+    app.add_option("--ita", ita, "ita");
     app.add_option("--max-clusters", max_clusters, "The maximum number of clusters to visit.");
     app.add_option("--max-ladr-clusters", max_ladr_clusters, "The maximum number of clusters to visit.");
  
@@ -348,9 +369,12 @@ int main(int argc, const char** argv)
         app.weighted(),
         timeout_micro,
         risk_factor,
+        mu,
+        ita,
         max_clusters,
         max_ladr_clusters,
         ladr_graph_path,
+        subcluster_size_path,
         run_id,
         iteration);
 

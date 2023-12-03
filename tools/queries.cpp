@@ -205,6 +205,17 @@ void perftest(
     boost::algorithm::split(query_types, query_type, boost::is_any_of(":"));
 
     ladr_graph g(ladr_graph_path, max_ladr_clusters);
+
+    std::string subcluster_size_path = "/home/yifanq/anytime-daat-data/subcluster_size_splade_dense_max_4096_8.txt";
+
+    ifstream file(subcluster_size_path);
+    std::string line;
+
+    vector<int> subcluster_sizes;
+    while (getline(file, line)) {
+        subcluster_sizes.push_back(stoi(line));
+    }
+    // printf("%d\n", subcluster_sizes[0]);
     
 
     for (auto&& t: query_types) {
@@ -352,7 +363,7 @@ void perftest(
             query_fun = [&](Query query, Threshold t, const cluster_queue&) {
                 topk_queue topk(k);
                 topk.set_threshold(t);
-                maxscore_query maxscore_q(topk, all_ranges, g);
+                maxscore_query maxscore_q(topk, all_ranges, g, subcluster_sizes);
                 maxscore_q(make_max_scored_cursors(index, wdata, *scorer, query, weighted), index.num_docs());
                 topk.finalize();
                 return topk.topk().size();
@@ -362,7 +373,7 @@ void perftest(
             query_fun = [&](Query query, Threshold t, const cluster_queue& ordered_clusters) {
                 topk_queue topk(k);
                 topk.set_threshold(t);
-                maxscore_query maxscore_q(topk, all_ranges, g);
+                maxscore_query maxscore_q(topk, all_ranges, g, subcluster_sizes);
                 maxscore_q.ordered_range_query(
                     make_max_scored_cursors(index, wdata, *scorer, query, weighted), ordered_clusters, max_clusters);
                 topk.finalize();
@@ -373,7 +384,7 @@ void perftest(
             query_fun = [&](Query query, Threshold t, const cluster_queue&) {
                 topk_queue topk(k);
                 topk.set_threshold(t);
-                maxscore_query maxscore_q(topk, all_ranges, g);
+                maxscore_query maxscore_q(topk, all_ranges, g, subcluster_sizes);
                 maxscore_q.boundsum_range_query(
                     make_max_scored_cursors(index, wdata, *scorer, query, weighted), max_clusters);
                 topk.finalize();
@@ -384,7 +395,7 @@ void perftest(
             query_fun = [&](Query query, Threshold t, const cluster_queue&) {
                 topk_queue topk(k);
                 topk.set_threshold(t);
-                maxscore_query maxscore_q(topk, all_ranges, g);
+                maxscore_query maxscore_q(topk, all_ranges, g, subcluster_sizes);
                 maxscore_q.boundsum_timeout_query(
                     make_max_scored_cursors(index, wdata, *scorer, query, weighted), timeout_microsec, risk_factor);
                 topk.finalize();

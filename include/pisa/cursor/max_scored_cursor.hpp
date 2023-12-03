@@ -47,11 +47,11 @@ class MaxScoredCursor: public ScoredCursor<Cursor> {
 
     // get_range_max_score returns the weighted score,
     // so just update it.
-    void update_range_max_score(uint64_t range)
+    void update_range_max_score(uint64_t range_start, uint64_t range_end=0)
     {
-      m_max_score = get_range_max_score(range);
-      for (int i = 1; i < 8; i++) {
-        m_max_score = std::max(m_max_score, get_range_max_score(range + i));
+      m_max_score = 0;
+      for (int i = range_start; i < range_end; i++) {
+        m_max_score = std::max(m_max_score, get_range_max_score(i));
       }
     }
 
