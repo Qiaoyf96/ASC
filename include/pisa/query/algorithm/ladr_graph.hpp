@@ -22,6 +22,7 @@ struct ladr_graph {
     std::unordered_map<int, std::vector<int>> graph;
     bool visited[4096];
     int counts[4096];
+    float weights[4096];
 
     std::set<int> pos_docs;
 
@@ -43,6 +44,8 @@ struct ladr_graph {
     void init() {
         memset(visited, 0, sizeof(visited));
         memset(counts, 0, sizeof(counts));
+        memset(weights, 0, sizeof(weights));
+        
         pos_docs.clear();
     }
 
@@ -51,26 +54,30 @@ struct ladr_graph {
 	pos_docs.clear();
     }
 
-    void add(int docid) {
+    void add(int docid, float weight) {
         if (pos_docs.find(docid) == pos_docs.end()) {
             for (auto &d : graph[docid]) {
                 counts[d] += 1;
+                weights[d] += weight;
             }
             pos_docs.insert(docid);
         }
     }
 
-    int next_cluster() {
+    std::pair<int, float> next_cluster() {
         int ret = -1;
-        int max_count = 0;
+        float max_weight = 0;
+
+        int tot = 0;
         for (int c = 0; c < 4096; c++) {
-            if (!visited[c] && counts[c] > max_count) {
-                max_count = counts[c];
+            if (!visited[c] && weights[c] > max_weight) {
+                max_weight = weights[c];
                 ret = c;
+                tot = counts[c];
             }
         }
         
-        return ret;
+        return std::make_pair(ret, max_weight / tot);
     }
 
     bool is_visited(int clusterid) {

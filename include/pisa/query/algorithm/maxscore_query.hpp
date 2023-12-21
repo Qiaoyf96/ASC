@@ -268,7 +268,7 @@ struct maxscore_query {
             return;
         }
 
-        // m_graph.init();
+        m_graph.init();
 
         auto tot_cluster_size = m_range_to_docid.size();
 
@@ -277,7 +277,7 @@ struct maxscore_query {
         std::vector<float> upper_bounds(cursors.size());
         
         // BoundSum computation: For each range, get the boundsum.
-        std::vector<std::tuple<size_t, float, float, size_t>> range_and_score;
+        std::vector<std::tuple<size_t, float, float>> range_and_score;
         size_t range_id = 0;
 
         float range_maxes[tot_cluster_size];
@@ -289,8 +289,9 @@ struct maxscore_query {
             }
         }
 
-        // float range_maxes_level_up[4096];
-        // float range_avgs_level_up[4096];
+        float range_maxes_level_up_list[4096];
+        float range_avgs_level_up_list[4096];
+        size_t cluster_starting_point[4096];
         int tot = 0;
         for (int range_id = 0; range_id < 4096; range_id++) {
             float range_maxes_level_up = 0;
@@ -303,7 +304,11 @@ struct maxscore_query {
 
             range_avgs_level_up /= sub_cluster_size;
 
-            range_and_score.emplace_back(range_id, range_maxes_level_up, range_avgs_level_up, tot);
+            range_and_score.emplace_back(range_id, range_maxes_level_up, range_avgs_level_up);
+            cluster_starting_point[range_id] = tot;
+
+            range_maxes_level_up_list[range_id] = range_maxes_level_up;
+            range_avgs_level_up_list[range_id] = range_avgs_level_up;
             tot += sub_cluster_size;
         }
 
@@ -319,6 +324,7 @@ struct maxscore_query {
 
             // Termination check: number of clusters processed, and thresholds
             if (!m_topk.would_enter(std::get<1>(p) * m_mu) && !m_topk.would_enter(std::get<2>(p) * m_ita)) {
+            // if (!m_topk.would_enter(std::get<1>(p) * m_mu)) {
                 // printf("details: ");
                 // for (int j = 0; j < processed_clusters; j++) {
                 //     printf("%ld ", range_and_score[j].first);
@@ -327,10 +333,17 @@ struct maxscore_query {
                 printf("clusters: %d\n", processed_clusters);
                 break;
             }
+            // if (!m_topk.would_enter(std::get<2>(p) * m_ita)) {
+            //     continue;
+            // }
             
 
-            int next_index_start = std::get<3>(p);
-            int next_index_end = next_index_start + m_subcluster_sizes[std::get<0>(p)];
+            auto cluster_id = std::get<0>(p);
+
+            int next_index_start = cluster_starting_point[cluster_id];
+            int next_index_end = next_index_start + m_subcluster_sizes[cluster_id];
+
+            m_graph.visit(cluster_id);
    
             int found = 0;
 
@@ -423,10 +436,122 @@ struct maxscore_query {
         }
 
 
-
-        // for (int i = 0; i < m_graph.m_num_clusters) {
-
+        // m_graph.init_counts();
+        // auto& qs = m_topk.topk();
+        // for (auto &q : qs) {
+        //     m_graph.add(q.second, q.first);
         // }
+
+        float max_score = 100000;
+
+        for (int i = 0; i < m_graph.m_num_clusters; i++) {
+            auto nc = m_graph.next_cluster();
+            auto cluster_id = nc.first;
+            // auto reward = nc.second;
+            auto reward = max_score;
+            m_graph.visit(cluster_id);
+
+            // if (!m_topk.would_enter(reward * 0.5)) {
+            //     break;
+            // }
+            
+            printf("graph: %d %d %d %d %d %d\n", i, int(range_maxes_level_up_list[cluster_id]), int(range_avgs_level_up_list[cluster_id]), int(reward), int(nc.second), int(m_topk.threshold()));
+
+            max_score = 0;
+        
+            int next_index_start = cluster_starting_point[cluster_id];
+            int next_index_end = next_index_start + m_subcluster_sizes[cluster_id];
+
+            int found = 0;
+
+            // Pick up the [start, end] range
+            auto start = m_range_to_docid[next_index_start].first;
+            auto end = m_range_to_docid[next_index_end - 1].second;
+
+            float range_bound = 0.0f;
+            auto out = upper_bounds.rbegin();
+            for (auto pos = cursors.rbegin(); pos != cursors.rend(); ++pos) {
+                pos->global_geq(start);
+                pos->update_range_max_score(next_index_start, next_index_end);  
+                range_bound += pos->max_score();
+                *out++ = range_bound;
+            }
+
+            auto above_threshold = [&](auto score) { return m_topk.would_enter(score); };
+
+            auto first_upper_bound = upper_bounds.end();
+            auto first_lookup = cursors.end();
+
+            auto next_docid = min_docid(cursors);
+
+            auto update_non_essential_lists = [&] {
+                while (first_lookup != cursors.begin()
+                       && !above_threshold(*std::prev(first_upper_bound))) {
+                    --first_lookup;
+                    --first_upper_bound;
+                    if (first_lookup == cursors.begin()) {
+                        return UpdateResult::ShortCircuit;
+                    }
+                }
+                return UpdateResult::Continue;
+            };
+
+            if (update_non_essential_lists() == UpdateResult::ShortCircuit) {
+                continue;
+            }
+
+            float current_score = 0;
+            std::uint32_t current_docid = 0;
+
+            while (current_docid < end) {
+                auto status = DocumentStatus::Skip;
+                while (status == DocumentStatus::Skip) {
+                    current_score = 0;
+                    if (PISA_UNLIKELY(next_docid >= end)) {
+                        current_docid = end;
+                        break;
+                    }
+
+                    current_docid = std::exchange(next_docid, end);
+ 
+                    std::for_each(cursors.begin(), first_lookup, [&](auto& cursor) {
+                        if (cursor.docid() == current_docid) {
+                            current_score += cursor.score();
+                            cursor.next();
+ 
+                        }
+                        if (auto docid = cursor.docid(); docid < next_docid) {
+                            next_docid = docid;
+                        }
+                    });
+
+                    status = DocumentStatus::Insert;
+                    auto lookup_bound = first_upper_bound;
+                    for (auto pos = first_lookup; pos != cursors.end(); ++pos, ++lookup_bound) {
+                        auto& cursor = *pos;
+                        if (not above_threshold(current_score + *lookup_bound)) {
+                            status = DocumentStatus::Skip;
+                            break;
+                        }
+                        cursor.next_geq(current_docid);
+                        if (cursor.docid() == current_docid) {
+                            current_score += cursor.score();
+ 
+                        }
+                    }
+                }
+                max_score = std::max(max_score, current_score);
+                bool ff = m_topk.insert(current_score, current_docid);
+                if (ff) {
+                    found += 1;
+                }
+                if (ff && update_non_essential_lists() == UpdateResult::ShortCircuit) {
+                    break;
+                }
+            }
+
+            founded.push_back(found);
+        }
 
         // printf("clusters: %d\n", 4096);
 
