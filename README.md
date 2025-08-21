@@ -1,6 +1,6 @@
 # ASC
 
-This is the code and data repository for the paper **Threshold-driven pruning with segmented maximum term weights for approximate cluster-based sparse retrieval** by Joel Mackenzie, Matthias Petri, and Alistair Moffat. 
+This is the code and data repository for the paper **Threshold-driven pruning with segmented maximum term weights for approximate cluster-based sparse retrieval** by Yifan Qiao, Parker Carlson, Shanxiu He, Yingrui Yang, and Tao Yang. 
 
 The code is forked from and build upon [PISA](https://github.com/pisa-engine/pisa).
 
