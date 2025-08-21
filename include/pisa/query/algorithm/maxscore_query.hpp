@@ -286,9 +286,9 @@ struct maxscore_query {
             }
         }
 
-        size_t cluster_starting_point[1024];
+        size_t cluster_starting_point[4096];
         int tot = 0;
-        for (int range_id = 0; range_id < 1024; range_id++) {
+        for (int range_id = 0; range_id < 4096; range_id++) {
             float range_maxes_level_up = 0;
             float range_avgs_level_up = 0;
             auto sub_cluster_size = m_subcluster_sizes[range_id];
@@ -311,7 +311,7 @@ struct maxscore_query {
 
         int tot_evaluated = 0;
 
-        for (int processed_clusters = 0; processed_clusters < 1024; processed_clusters++) {
+        for (int processed_clusters = 0; processed_clusters < 4096; processed_clusters++) {
 
             auto &p = range_and_score[processed_clusters];
 
@@ -452,7 +452,7 @@ struct maxscore_query {
             }
         }
 
-        int cluster_sizes = 1024;
+        int cluster_sizes = 4096;
 
         size_t cluster_starting_point[cluster_sizes];
         int tot = 0;

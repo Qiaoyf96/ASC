@@ -22,7 +22,7 @@ To execute the code,
 dsum --weighted -s quantized --documents $DOC_LEX_FILE --max-clusters $CLUSTER_SIZE --threads 0 --mu $MU_VAL —eta $ETA_VAL --subcluster_size_path $SUB_CLUSTER_SIZE_FILE
 ```
 
-The required files can either be downloaded from [here](https://drive.google.com/drive/folders/1La2PL27fjYbjp8dtd0lV_G9HK4ZjMpF-?usp=sharing), or generated from the following commands:
+The required files can either be downloaded from [here](https://apple.box.com/s/1mh3llj93ls2mkj5aywphtzo8ad8wjsq) (password: ASC_data_repo), or generated from the following commands:
 
 ```
 ./reorder-docids --collection $SPLADE_ORIGINAL_FILE --output $REORDERED_INDEX_PATH --from-mapping $CLUSTER_MAPPING_FILE
