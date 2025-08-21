@@ -78,7 +78,7 @@ std::tuple<std::vector<uint32_t>, std::vector<float>, std::vector<uint32_t>, std
 
     // for (int xx = current_range + 1; xx < 29849; xx++) {
     // for (int xx = current_range + 1; xx < 31392; xx++) {
-    for (int xx = current_range + 1; xx < 31837; xx++) {
+    for (int xx = current_range + 1; xx < 7974; xx++) {
     // for (int xx = current_range + 1; xx < 32768; xx++) {
         range_docid.push_back(xx);
         range_max_term_weight.push_back(0);

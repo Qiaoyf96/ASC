@@ -124,10 +124,11 @@ struct block_posting_list {
 
             // Case 2: It's valid, we'll search for it.
             // Could binary search or linear search...
-            uint64_t block = 0;
-            while (block_max(block) < lower_bound) {
-                ++block;
-            }
+            
+            auto* ub_iter = ((uint32_t const*)m_block_maxs);
+            uint32_t block =
+                (std::upper_bound(ub_iter, ub_iter + m_blocks - 1, lower_bound) - ub_iter);
+
             decode_docs_block(block);
 
             // Get to the identifier now

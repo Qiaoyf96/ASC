@@ -44,16 +44,16 @@ class TermProcessor {
         };
 
         // Implements '_to_id' method.
-        _to_id = [=](auto str) { return to_id(term_transformer_builder(stemmer_type)()(str)); };
-        // Loads stopwords.
-        if (stopwords_filename) {
-            std::ifstream is(*stopwords_filename);
-            io::for_each_line(is, [&](auto&& word) {
-                if (auto processed_term = _to_id(std::move(word)); processed_term.has_value()) {
-                    stopwords.insert(*processed_term);
-                }
-            });
-        }
+        // _to_id = [=](auto str) { return to_id(term_transformer_builder(stemmer_type)()(str)); };
+        // // Loads stopwords.
+        // if (stopwords_filename) {
+        //     std::ifstream is(*stopwords_filename);
+        //     io::for_each_line(is, [&](auto&& word) {
+        //         if (auto processed_term = _to_id(std::move(word)); processed_term.has_value()) {
+        //             stopwords.insert(*processed_term);
+        //         }
+        //     });
+        // }
     }
 
     std::optional<term_id_type> operator()(std::string token) { return _to_id(token); }

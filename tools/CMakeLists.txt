@@ -10,12 +10,6 @@ target_link_libraries(create_wand_data
   CLI11
 )
 
-add_executable(queries queries.cpp)
-target_link_libraries(queries
-  pisa
-  CLI11
-)
-
 add_executable(evaluate_queries evaluate_queries.cpp)
 target_link_libraries(evaluate_queries
   pisa
