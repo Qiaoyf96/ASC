@@ -1,153 +1,61 @@
-# Anytime Ranking for Document-Ordered Indexes
+# ASC
 
-This is the code and data repository for the paper **Anytime Ranking on Document-Ordered Indexes** by Joel Mackenzie, Matthias Petri, and Alistair Moffat. 
+This is the code and data repository for the paper **Threshold-driven pruning with segmented maximum term weights for approximate cluster-based sparse retrieval** by Joel Mackenzie, Matthias Petri, and Alistair Moffat. 
 
-The paper can be found on the ACM Digital Library: https://dl.acm.org/doi/abs/10.1145/3467890
+The code is forked from and build upon [PISA](https://github.com/pisa-engine/pisa).
 
-The author version is also available [here](https://jmmackenzie.io/pdf/mpm22-tois.pdf) or [here](https://people.eng.unimelb.edu.au/ammoffat/abstracts/tois21mpm.pdf).
+## Instructions
 
-The work was also covered on the [Amazon Science Blog](https://www.amazon.science/blog/more-efficient-and-reliable-retrieval-of-distributed-data).
+To build the project,
 
-## Reference
-If you use our anytime extensions to PISA in your own research, you can cite the following reference:
 ```
-@article{mpm21-tois,
-  author = {J. Mackenzie and M. Petri and A. Moffat},
-  title = {Anytime Ranking for Document-Ordered Indexes},
-  journal = "ACM Trans. on Information Systems",
-  year = {2021},
-  issue_date = {January 2022},
-  volume = {40},
-  number = {1},
-  url = {https://doi.org/10.1145/3467890},
-  doi = {10.1145/3467890},
-  articleno = {13},
-  numpages = {32},
-}
+mkdir build
+cd build
+cmake ..
+make -j reorder-docids lexicon compress_inverted_index create_wand_data evaluate_queries
 ```
 
-## Changes
-The main changes in this version of the PISA engine allow for anytime query processing. The
-idea is to cluster the documents in the inverted index, and traverse the index in order of these
-clusters (attempting to visit the most promising clusters first).
+To execute the code,
 
-**NOTE: This branch allows for query weighting via the --weighted flag in both the `queries` and `evaluate_queries` binaries.** 
-
-## Algorithms implemented
-Each of the following algorithms is implemented in terms of the `wand`, `block_max_wand`, and
-`maxscore` index traversal algorithms. Hence, ranges will be visited based on some priority, and
-the processing within each range will be handled by the traversal algorithm used.
-The particular range ordering algorithms are as follows:
-
-- `*_ordered_range` : This query type visits a series of clusters in a pre-defined order, as
-accepted via command line parameters (a file of per-query cluster orderings). Termination will
-occur when the specified number of clusters have been visited.
-
-- `*_boundsum` : This query type is the same as the `ordered_range` query, but visits clusters
-according to the `BoundSum` heuristic. Again, termination will occur when the specified number
-of clusters have been visited, but safe early termination is also possible (check the paper for
-more details).
-
-- `*_boundsum_timeout` : This is the true "anytime" querying mode. Clusters are visited in the
-order specified by `BoundSum`, but termination occurs based on an internal clock and a provided
-timeout in microseconds.
-
-So, if you wanted to use `maxscore` to process within each cluster, and you wanted anytime processing, 
-you would use the `maxscore_boundsum_timeout` query type.
-
-See [the examples](EXAMPLES.md) for some concrete examples of these different algorithms.
-
-## Annotations
-To make life (an epsilon) easier, the modified aspects of the original PISA code have been annotated
-with an `//ANYTIME` comment. Hopefully this makes the modifications easier to track for anyone
-interested on extending or improving our work.
-
-## Data
-
-[See the data README here.](DATA.md)
-
-## Indexing
-
-The following example operates on `gov2`, but the same instructions apply to `cw09b`.
-
-Navigate to the root directory containing this project.
-Collect and unpack the data.
+```
+./evaluate_queries -e block_simdbp -i $COMPRESSED_INDEX_FILE -w $WAND_FILE -q $QUERY_FILE -k 1000 -a maxscore_boun
+dsum --weighted -s quantized --documents $DOC_LEX_FILE --max-clusters $CLUSTER_SIZE --threads 0 --mu $MU_VAL —eta $ETA_VAL --subcluster_size_path $SUB_CLUSTER_SIZE_FILE
 ```
 
-echo "Get the collections"
-mkdir -p data/ciff-data/
-cd data/ciff-data/
-## Download the data from the links above via wget or curl, see DATA.md for links
-wget https://cloudstor.aarnet.edu.au/plus/s/LnlerBmLyLosNRq/download?path="gov2-qkld-bp.ciff.gz" -O gov2-qkld-bp.ciff.gz
-gunzip gov2-qkld-bp.ciff.gz
-cd ../..
+The required files can either be downloaded from [here](https://drive.google.com/drive/folders/1La2PL27fjYbjp8dtd0lV_G9HK4ZjMpF-?usp=sharing), or generated from the following commands:
 
-echo "Get the queries and clusters"
-wget https://melbourne.figshare.com/ndownloader/files/28283766 -O queries-and-clusters.tar.gz
-tar xzvf queries-and-clusters.tar.gz 
-xz --decompress cluster-maps/gov2/qkld-bp.shardmap.xz
 ```
+./reorder-docids --collection $SPLADE_ORIGINAL_FILE --output $REORDERED_INDEX_PATH --from-mapping $CLUSTER_MAPPING_FILE
 
-Install PISA's `ciff` conversion tool. See the [repo here](https://github.com/pisa-engine/ciff) for more
-information.
+./lexicon build $DOC_MAP_FILE $DOC_LEX_FILE
+
+./compress_inverted_index -c $REORDERED_INDEX_PATH -o $COMPRESSED_INDEX_FILE -e block_simdbp
+
+./create_wand_data -c $REORDERED_INDEX_PATH -o $WAND_FILE -b 4000 -s quantized --document-clusters $CLUSTER_INFO_FILE
 ```
-cd data
-git clone https://github.com/pisa-engine/ciff pisa-ciff
-cd pisa-ciff
-cargo build --release
-cd ..
-```
-
-Convert the `.ciff` blobs into canonical PISA indexes:
-```
-mkdir pisa-canonical
-pisa-ciff/target/release/ciff2pisa --ciff-file ciff-data/gov2-qkld-bp.ciff --output pisa-canonical/gov2
-```
-
-Build the PISA indexes
-```
-mkdir pisa-indexes
-
-echo "Compress the index..."
-../build/bin/compress_inverted_index --encoding block_simdbp --collection pisa-canonical/gov2 --output pisa-indexes/gov2.block_simdbp.idx
-
-echo "Build the WAND data with ranges included..."
-../build/bin/create_wand_data --collection pisa-canonical/gov2 \
-                              --output pisa-indexes/gov2.fixed-40-w-ranges.bm25.bmw \
-                              --block-size 40 \
-                              --scorer bm25 \
-                              --document-clusters cluster-maps/gov2/qkld-bp.cluster-range
-
-echo "Building the term lexicon..."
-../build/bin/lexicon build pisa-canonical/gov2.terms pisa-indexes/gov2.termlex
-
-echo "Building the document identifier map..."
-../build/bin/lexicon build pisa-canonical/gov2.documents pisa-indexes/gov2.doclex
-```
-
-# PISA@9bb4d43
-
-This repo is based on [PISA](https://github.com/pisa-engine/pisa/) at commit `9bb4d43` -- please see the original
-repo if you are interested in more details.
-
 
 ## Reference
 
-If you use PISA in your own research, you can cite the following reference:
+If ASC helps you in your research, you can cite the following reference:
 ```
-@inproceedings{MSMS2019,
-  author    = {Antonio Mallia and Michal Siedlaczek and Joel Mackenzie and Torsten Suel},
-  title     = {{PISA:} Performant Indexes and Search for Academia},
-  booktitle = {Proceedings of the Open-Source {IR} Replicability Challenge co-located
-               with 42nd International {ACM} {SIGIR} Conference on Research and Development
-               in Information Retrieval, OSIRRC@SIGIR 2019, Paris, France, July 25,
-               2019.},
-  pages     = {50--56},
-  year      = {2019},
-  url       = {http://ceur-ws.org/Vol-2409/docker08.pdf}
+@inproceedings{qiao-etal-2024-threshold,
+    title = "Threshold-driven Pruning with Segmented Maximum Term Weights for Approximate Cluster-based Sparse Retrieval",
+    author = "Qiao, Yifan  and
+      Carlson, Parker  and
+      He, Shanxiu  and
+      Yang, Yingrui  and
+      Yang, Tao",
+    editor = "Al-Onaizan, Yaser  and
+      Bansal, Mohit  and
+      Chen, Yun-Nung",
+    booktitle = "Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing",
+    month = nov,
+    year = "2024",
+    address = "Miami, Florida, USA",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2024.emnlp-main.1101/",
+    doi = "10.18653/v1/2024.emnlp-main.1101",
+    pages = "19742--19757",
+    abstract = "This paper revisits dynamic pruning through rank score thresholding in cluster-based sparse retrieval to skip the index partially at cluster and document levels during inference. It proposes a two-parameter pruning control scheme called ASC with a probabilistic guarantee on rank-safeness competitiveness. ASC uses cluster-level maximum weight segmentation to improve accuracy of rank score bound estimation and threshold-driven pruning, and is targeted for speeding up retrieval applications requiring high relevance competitiveness. The experiments with MS MARCO and BEIR show that ASC improves the accuracy and safeness of pruning for better relevance while delivering a low latency on a single-threaded CPU."
 }
 ```
-
-# Updates
-
-- 15/07/2022: The ability to do weighted query processing (where query term weights are obeyed) is now available in the `weight-queries` branch. This may get merged into `master` at some stage but will remain on its own branch for now.

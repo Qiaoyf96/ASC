@@ -329,7 +329,6 @@ int main(int argc, const char** argv)
     app.add_option("--mu", mu, "mu");
     app.add_option("--eta", eta, "eta");
     app.add_option("--max-clusters", max_clusters, "The maximum number of clusters to visit.");
-    app.add_option("--max-ladr-clusters", max_ladr_clusters, "The maximum number of clusters to visit.");
  
     CLI11_PARSE(app, argc, argv);
 
